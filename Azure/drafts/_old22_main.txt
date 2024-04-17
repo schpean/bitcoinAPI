@@ -1,0 +1,162 @@
+# Specify the Azure provider
+provider "azurerm" {
+  features {}
+}
+
+# Define the resource group
+resource "azurerm_resource_group" "example" {
+  name     = "my-resource-group"
+  location = "West Europe"  
+}
+
+# Define the Azure Kubernetes Service (AKS) cluster
+resource "azurerm_kubernetes_cluster" "kubernetes" {
+  name                = "my-kubernetes-cluster"
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+  dns_prefix          = "mycluster"  
+  kubernetes_version  = "1.29.2"  # Updated to specify the latest stable version
+  
+  default_node_pool {
+    name       = "default"
+    node_count = 1
+    vm_size    = "Standard_DS3_v2"  
+  }
+  
+  # Service principal for AKS authentication
+  service_principal {
+    client_id     = "89719fa0-f0b1-4c95-a07e-d5322ce8746b"
+    client_secret = "ul38Q~Sn8-3GkpWB9E6Lay_nt4EytMBvCSuIdcsD"
+  }
+  
+  # Enable Role-Based Access Control (RBAC)
+  role_based_access_control {
+    enabled = true
+  }
+}
+
+# Define the NGINX Ingress Controller
+resource "kubernetes_namespace" "ingress_namespace" {
+  metadata {
+    name = "nginx-ingress"
+  }
+}
+
+resource "helm_release" "nginx_ingress" {
+  repository = "https://charts.bitnami.com/bitnami"
+  chart      = "nginx-ingress-controller"
+  namespace  = kubernetes_namespace.ingress_namespace.metadata[0].name
+
+  values = [
+    file("nginx-ingress-values.yaml")
+  ]
+}
+
+# Define network policies to restrict communication between Service A and Service B
+resource "kubernetes_network_policy" "service_a_policy" {
+  metadata {
+    name      = "service-a-policy"
+    namespace = "default"  # Adjust if Service A is deployed to a different namespace
+  }
+
+  spec {
+    pod_selector {
+      match_labels = {
+        app = "service-a"
+      }
+    }
+
+    policy_types = ["Ingress"]
+  }
+}
+
+resource "kubernetes_network_policy" "service_b_policy" {
+  metadata {
+    name      = "service-b-policy"
+    namespace = "default"  # Adjust if Service B is deployed to a different namespace
+  }
+
+  spec {
+    pod_selector {
+      match_labels = {
+        app = "service-b"
+      }
+    }
+
+    policy_types = ["Ingress"]
+  }
+}
+
+# Define the Deployment for Service A
+resource "kubernetes_deployment" "service_a_deployment" {
+  metadata {
+    name      = "service-a"
+    namespace = "default"  # Adjust if Service A is deployed to a different namespace
+    labels = {
+      app = "service-a"
+    }
+  }
+
+  spec {
+    replicas = 1  # Adjust the number of replicas as needed
+
+    selector {
+      match_labels = {
+        app = "service-a"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          app = "service-a"
+        }
+      }
+
+      spec {
+        container {
+          image = "service-a:latest"  # Replace with the image for Service A
+          name  = "service-a"
+          # Add additional container settings as needed
+        }
+      }
+    }
+  }
+}
+
+# Define the Deployment for Service B
+resource "kubernetes_deployment" "service_b_deployment" {
+  metadata {
+    name      = "service-b"
+    namespace = "default"  # Adjust if Service B is deployed to a different namespace
+    labels = {
+      app = "service-b"
+    }
+  }
+
+  spec {
+    replicas = 1  # Adjust the number of replicas as needed
+
+    selector {
+      match_labels = {
+        app = "service-b"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          app = "service-b"
+        }
+      }
+
+      spec {
+        container {
+          image = "service-b:latest"  # Replace with the image for Service B
+          name  = "service-b"
+          # Add additional container settings as needed
+        }
+      }
+    }
+  }
+}

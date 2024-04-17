@@ -1,0 +1,58 @@
+resource "azurerm_resource_group" "example" {
+  name     = "All_in_one_resource_group"
+  location = "West Europe"
+}
+resource "azurerm_container_registry" "example" {
+  name                = "containerRegistry"
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  sku                 = "Premium"
+}
+
+data "azurerm_client_config" "current" {
+}
+
+output "account_id" {
+  value = data.azurerm_client_config.current.client_id
+}
+
+resource "azurerm_kubernetes_cluster" "example" {
+  name                = "bestclusterever"
+  location            = "West Europe"
+  resource_group_name = azurerm_resource_group.example.name
+  dns_prefix          = "bestclusterever"
+
+  default_node_pool {
+    name       = "default"
+    node_count = 1
+    vm_size    = "Standard_D2_v2"
+  }
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  tags = {
+    Environment = "Production"
+  }
+}
+
+output "client_certificate" {
+  value     = azurerm_kubernetes_cluster.example.kube_config[0].client_certificate
+  sensitive = true
+}
+
+output "kube_config" {
+  value = azurerm_kubernetes_cluster.example.kube_config_raw
+
+  sensitive = true
+}
+
+provider "azurerm" {
+  features {}
+
+  subscription_id   = "7351a827-f596-4915-8aae-8c9bbb2b2dd4"
+  tenant_id         = "6bb41fe4-40a3-4a10-b6cd-38278e78b21a"
+  client_id         = "21672f02-d4fb-40e6-aef3-dfee03055879"
+  client_secret     = "24F8Q~C4vwbJS.1jmn2q.L5pPUK3Kk_FIRc4ja64"
+}
